@@ -30,6 +30,7 @@ namespace photo2tiles
         Tile[] tiles;
 
         int datum;
+        int zoom;
 
         double tl_lat;
         double tr_lat;
@@ -40,6 +41,8 @@ namespace photo2tiles
         double tr_lon;
         double bl_lon;
         double br_lon;
+
+        string mapName;
 
 
 
@@ -63,50 +66,12 @@ namespace photo2tiles
             if (!checkFields())
                 return;
 
-            int zoom = getZoom();
+            zoom = getZoom();
+            mapName = mapName_text.ToString();
+  
             convertCoordinates();
-
-            int height = map.PixelHeight;
-            int width = map.PixelWidth;
-
-            int xtiles = width / 256;
-            int ytiles = height / 256;
-
-            double delta_y = bl_lat - tl_lat;
-            double delta_x = tr_lon - tl_lon;
-
-            tiles = new Tile[xtiles * ytiles];
-            int count = 0;
-
-            double[] tilesLat = new double[xtiles * ytiles];
-            double[] tilesLon = new double[xtiles * ytiles];
-
-            for (int i = 0; i < xtiles; i++)
-            {
-                for (int j = 0; j < ytiles; j++)
-                {
-                    tilesLon[count] = (delta_x / xtiles * i + tl_lon);
-                    tilesLat[count] = (delta_y / ytiles * j + tl_lat);
-                    count++;
-                }
-            }
-
-            count = 0;
-            for (int i = 0; i < xtiles; i++)
-            {
-                for (int j = 0; j < ytiles; j++)
-                {
-                    tiles[count] = new Tile(
-                        new CroppedBitmap(map, new Int32Rect(i * 256, j * 256, 256, 256)),
-                        tilesLat[count],
-                        tilesLon[count],
-                        zoom);
-                    count++;
-                }
-            }
-
-            saveTiles(mapName_text.Text, zoom);
-
+            cropImageForTiles();
+            saveTiles();
         }
 
         private bool checkFields()
@@ -239,7 +204,49 @@ namespace photo2tiles
 
         }
 
-        private void saveTiles(string mapName, int zoom)
+        private void cropImageForTiles()
+        {
+            int height = map.PixelHeight;
+            int width = map.PixelWidth;
+
+            int xtiles = width / 256;
+            int ytiles = height / 256;
+
+            double delta_y = bl_lat - tl_lat;
+            double delta_x = tr_lon - tl_lon;
+
+            tiles = new Tile[xtiles * ytiles];
+            int count = 0;
+
+            double[] tilesLat = new double[xtiles * ytiles];
+            double[] tilesLon = new double[xtiles * ytiles];
+
+            for (int i = 0; i < xtiles; i++)
+            {
+                for (int j = 0; j < ytiles; j++)
+                {
+                    tilesLon[count] = (delta_x / xtiles * i + tl_lon);
+                    tilesLat[count] = (delta_y / ytiles * j + tl_lat);
+                    count++;
+                }
+            }
+
+            count = 0;
+            for (int i = 0; i < xtiles; i++)
+            {
+                for (int j = 0; j < ytiles; j++)
+                {
+                    tiles[count] = new Tile(
+                        new CroppedBitmap(map, new Int32Rect(i * 256, j * 256, 256, 256)),
+                        tilesLat[count],
+                        tilesLon[count],
+                        zoom);
+                    count++;
+                }
+            }
+        }
+
+        private void saveTiles()
         {
             BitmapEncoder encoder;
             FileStream stream;
