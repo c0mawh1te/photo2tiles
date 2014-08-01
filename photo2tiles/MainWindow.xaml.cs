@@ -27,6 +27,7 @@ namespace photo2tiles
         }
 
         BitmapImage map;
+        Tile[] tiles;
 
         int datum;
 
@@ -59,30 +60,8 @@ namespace photo2tiles
 
         private void saveButton_Click(object sender, RoutedEventArgs e)
         {
-            if (loadButton.Visibility == Visibility.Visible)
-            {
-                MessageBox.Show("Изображение не выбрано!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            if (!checkFields())
                 return;
-            }
-
-            if (mapName_text.Text.Length == 0)
-            {
-                MessageBox.Show("Введите название карты!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-
-            if (!Double.TryParse(tl_lat_text.Text, out tl_lat) ||
-                !Double.TryParse(tr_lat_text.Text, out tr_lat) ||
-                !Double.TryParse(bl_lat_text.Text, out bl_lat) ||
-                !Double.TryParse(br_lat_text.Text, out br_lat) ||
-                !Double.TryParse(tl_lon_text.Text, out tl_lon) ||
-                !Double.TryParse(tr_lon_text.Text, out tr_lon) ||
-                !Double.TryParse(bl_lon_text.Text, out bl_lon) ||
-                !Double.TryParse(br_lon_text.Text, out br_lon))
-            {
-                MessageBox.Show("Неверно заданы координаты!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
 
             int zoom = getZoom();
             convertCoordinates();
@@ -96,7 +75,7 @@ namespace photo2tiles
             double delta_y = bl_lat - tl_lat;
             double delta_x = tr_lon - tl_lon;
 
-            Tile[] tiles = new Tile[xtiles * ytiles];
+            tiles = new Tile[xtiles * ytiles];
             int count = 0;
 
             double[] tilesLat = new double[xtiles * ytiles];
@@ -126,23 +105,38 @@ namespace photo2tiles
                 }
             }
 
-            string mapName = mapName_text.Text;
-            BitmapEncoder encoder;
-            FileStream stream;
+            saveTiles(mapName_text.Text, zoom);
 
-            foreach (Tile tile in tiles)
+        }
+
+        private bool checkFields()
+        {
+            if (loadButton.Visibility == Visibility.Visible)
             {
-                encoder = new PngBitmapEncoder();
-                encoder.Frames.Add(BitmapFrame.Create(tile.getCroppedBitmap()));
-
-                if (!Directory.Exists(mapName + "\\" + zoom + "\\" + tile.getX()))
-                    Directory.CreateDirectory(mapName + "\\" + zoom + "\\" + tile.getX());
-
-                stream = new FileStream(mapName + "\\" + zoom + "\\" + tile.getX() + "\\" + tile.getY() + ".png.tile", FileMode.Create);
-                encoder.Save(stream);
-                stream.Close();
+                MessageBox.Show("Изображение не выбрано!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
             }
 
+            if (mapName_text.Text.Length == 0)
+            {
+                MessageBox.Show("Введите название карты!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
+
+            if (!Double.TryParse(tl_lat_text.Text, out tl_lat) ||
+                !Double.TryParse(tr_lat_text.Text, out tr_lat) ||
+                !Double.TryParse(bl_lat_text.Text, out bl_lat) ||
+                !Double.TryParse(br_lat_text.Text, out br_lat) ||
+                !Double.TryParse(tl_lon_text.Text, out tl_lon) ||
+                !Double.TryParse(tr_lon_text.Text, out tr_lon) ||
+                !Double.TryParse(bl_lon_text.Text, out bl_lon) ||
+                !Double.TryParse(br_lon_text.Text, out br_lon))
+            {
+                MessageBox.Show("Неверно заданы координаты!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
+
+            return true;
         }
 
         private void convertCoordinates()
@@ -166,34 +160,6 @@ namespace photo2tiles
             cc.convert(br_lat, br_lon, datum);
             br_lat = cc.getLat();
             br_lon = cc.getLon();
-        }
-
-        private double getDistance(double lat1, double lon1, double lat2, double lon2)
-        {
-            //координаты в радианы
-            lat1 = lat1 * Math.PI / 180;
-            lon1 = lon1 * Math.PI / 180;
-            lat2 = lat2 * Math.PI / 180;
-            lon2 = lon2 * Math.PI / 180;
-
-            //косинусы и синусы широт
-            double cos1 = Math.Cos(lat1);
-            double cos2 = Math.Cos(lat2);
-            double sin1 = Math.Sin(lat1);
-            double sin2 = Math.Sin(lat2);
-
-            //разницы долгот
-            double delta = lon2 - lon1;
-            double cosDelta = Math.Cos(delta);
-            double sinDelta = Math.Sin(delta);
-
-            //вычисления длины большого круга
-            double y = Math.Sqrt(Math.Pow(cos2 * sinDelta, 2) + Math.Pow(cos1 * sin2 - sin1 * cos2 * cosDelta, 2));
-            double x = sin1 * sin2 + cos1 * cos2 * cosDelta;
-
-            double atan = Math.Atan2(y, x);
-            return atan * 6372795;
-
         }
 
         private int getZoom()
@@ -245,6 +211,55 @@ namespace photo2tiles
                 return 18;
         }
 
+        private double getDistance(double lat1, double lon1, double lat2, double lon2)
+        {
+            //координаты в радианы
+            lat1 = lat1 * Math.PI / 180;
+            lon1 = lon1 * Math.PI / 180;
+            lat2 = lat2 * Math.PI / 180;
+            lon2 = lon2 * Math.PI / 180;
+
+            //косинусы и синусы широт
+            double cos1 = Math.Cos(lat1);
+            double cos2 = Math.Cos(lat2);
+            double sin1 = Math.Sin(lat1);
+            double sin2 = Math.Sin(lat2);
+
+            //разницы долгот
+            double delta = lon2 - lon1;
+            double cosDelta = Math.Cos(delta);
+            double sinDelta = Math.Sin(delta);
+
+            //вычисления длины большого круга
+            double y = Math.Sqrt(Math.Pow(cos2 * sinDelta, 2) + Math.Pow(cos1 * sin2 - sin1 * cos2 * cosDelta, 2));
+            double x = sin1 * sin2 + cos1 * cos2 * cosDelta;
+
+            double atan = Math.Atan2(y, x);
+            return atan * 6372795;
+
+        }
+
+        private void saveTiles(string mapName, int zoom)
+        {
+            BitmapEncoder encoder;
+            FileStream stream;
+
+
+
+            foreach (Tile tile in tiles)
+            {
+                encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(tile.getCroppedBitmap()));
+
+                if (!Directory.Exists(mapName + "\\" + zoom + "\\" + tile.getX()))
+                    Directory.CreateDirectory(mapName + "\\" + zoom + "\\" + tile.getX());
+
+                stream = new FileStream(mapName + "\\" + zoom + "\\" + tile.getX() + "\\" + tile.getY() + ".png.tile", FileMode.Create);
+                encoder.Save(stream);
+                stream.Close();
+            }
+        }
+        
         private void RB_Checked(object sender, RoutedEventArgs e)
         {
             RadioButton rb = (sender as RadioButton);
@@ -267,6 +282,7 @@ namespace photo2tiles
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             wgs84_rb.IsChecked = true;
+
             /*forDebug
             tl_lat_text.Text = "53,2087";
             tl_lon_text.Text = "44,9409";
