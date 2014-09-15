@@ -21,29 +21,26 @@ namespace photo2tiles
     /// </summary>
     public partial class MainWindow : Window
     {
-        public MainWindow()
-        {
-            InitializeComponent();
-        }
+
 
         BitmapImage map;
         Tile[] tiles;
 
         int datum;
-        int zoom;
+        int zoomLevel;
 
-        double tl_lat;
-        double tr_lat;
-        double bl_lat;
-        double br_lat;
-
-        double tl_lon;
-        double tr_lon;
-        double bl_lon;
-        double br_lon;
+        double tl_lat, tr_lat;
+        double bl_lat, br_lat;
+        double tl_lon, tr_lon;
+        double bl_lon, br_lon;
 
         string mapName;
 
+
+        public MainWindow()
+        {
+            InitializeComponent();
+        }
 
 
         private void loadButton_Click(object sender, RoutedEventArgs e)
@@ -66,13 +63,14 @@ namespace photo2tiles
             if (!checkFields())
                 return;
 
-            zoom = getZoom();
-            mapName = mapName_text.ToString();
+            zoomLevel = calcZoomLevel();
+            mapName = mapName_text.Text;
   
             convertCoordinates();
             cropImageForTiles();
             saveTiles();
         }
+
 
         private bool checkFields()
         {
@@ -127,7 +125,7 @@ namespace photo2tiles
             br_lon = cc.getLon();
         }
 
-        private int getZoom()
+        private int calcZoomLevel()
         {
             double distance = getDistance(tl_lat, tl_lon, tr_lat, tr_lon);
             double resolution = distance / map.PixelWidth;
@@ -240,7 +238,7 @@ namespace photo2tiles
                         new CroppedBitmap(map, new Int32Rect(i * 256, j * 256, 256, 256)),
                         tilesLat[count],
                         tilesLon[count],
-                        zoom);
+                        zoomLevel);
                     count++;
                 }
             }
@@ -258,15 +256,19 @@ namespace photo2tiles
                 encoder = new PngBitmapEncoder();
                 encoder.Frames.Add(BitmapFrame.Create(tile.getCroppedBitmap()));
 
-                if (!Directory.Exists(mapName + "\\" + zoom + "\\" + tile.getX()))
-                    Directory.CreateDirectory(mapName + "\\" + zoom + "\\" + tile.getX());
+                if (!Directory.Exists(mapName + "\\" + zoomLevel + "\\" + tile.getX()))
+                {
+                    String path = mapName + "\\" + zoomLevel + "\\" + tile.getX();
+                    Directory.CreateDirectory(path);
+                }
 
-                stream = new FileStream(mapName + "\\" + zoom + "\\" + tile.getX() + "\\" + tile.getY() + ".png.tile", FileMode.Create);
+                stream = new FileStream(mapName + "\\" + zoomLevel + "\\" + tile.getX() + "\\" + tile.getY() + ".png.tile", FileMode.Create);
                 encoder.Save(stream);
                 stream.Close();
             }
         }
         
+
         private void RB_Checked(object sender, RoutedEventArgs e)
         {
             RadioButton rb = (sender as RadioButton);
@@ -290,7 +292,9 @@ namespace photo2tiles
         {
             wgs84_rb.IsChecked = true;
 
-            /*forDebug
+            //coordinates for debug only
+
+            /*
             tl_lat_text.Text = "53,2087";
             tl_lon_text.Text = "44,9409";
 
