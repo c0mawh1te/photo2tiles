@@ -35,6 +35,7 @@ namespace photo2tiles
         double bl_lon, br_lon;
 
         string mapName;
+        string mapPath;
 
 
         public MainWindow()
@@ -63,12 +64,17 @@ namespace photo2tiles
             if (!checkFields())
                 return;
 
-            zoomLevel = calcZoomLevel();
-            mapName = mapName_text.Text;
-  
+            calcZoomLevel();
             convertCoordinates();
             cropImageForTiles();
-            saveTiles();
+
+            if (saveTiles())
+            {
+                saveMetainfo();
+
+                string message = "Карта \"" + mapName + "\" была сохранена в " + mapPath;
+                MessageBox.Show(message, " ", MessageBoxButton.OK, MessageBoxImage.Asterisk);
+            }
         }
 
 
@@ -77,12 +83,6 @@ namespace photo2tiles
             if (loadButton.Visibility == Visibility.Visible)
             {
                 MessageBox.Show("Изображение не выбрано!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
-                return false;
-            }
-
-            if (mapName_text.Text.Length == 0)
-            {
-                MessageBox.Show("Введите название карты!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }
 
@@ -98,8 +98,39 @@ namespace photo2tiles
                 MessageBox.Show("Неверно заданы координаты!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }
-
             return true;
+        }
+
+        private void calcNewCoordinates()
+        {
+            int height = map.PixelHeight;
+            int width = map.PixelWidth;
+
+            double deltaLat = Math.Abs(bl_lat - tl_lat);
+            double deltaLon = Math.Abs(tr_lon - tl_lon);
+
+            double latInPix = deltaLat / height;
+            double lonInPix = deltaLon / width;
+
+            int yTiles = height / 256;
+            int xTiles = width / 256;
+
+            int newHeight = yTiles * 256;
+            int newWidth = xTiles * 256;
+
+            if(bl_lat > tl_lat)
+                bl_lat = latInPix * newHeight + tl_lat;
+            else
+                bl_lat = tl_lat - latInPix * newHeight;
+
+            if (br_lon > bl_lon)
+                br_lon = lonInPix * newWidth + bl_lon;
+            else
+                br_lon = bl_lon - lonInPix * newWidth;
+
+            br_lat = bl_lat;
+            tr_lon = br_lon;
+
         }
 
         private void convertCoordinates()
@@ -125,53 +156,52 @@ namespace photo2tiles
             br_lon = cc.getLon();
         }
 
-        private int calcZoomLevel()
+        private void calcZoomLevel()
         {
             double distance = getDistance(tl_lat, tl_lon, tr_lat, tr_lon);
             double resolution = distance / map.PixelWidth;
-
             // All values are shown for equator, and you have to 
             // multiply them by cos(latitude) to adjust to a given latitude. 
             resolution = resolution / Math.Abs(Math.Cos(tl_lat));
 
             if (resolution > 78271.53)
-                return 0;
+                zoomLevel = 0;
             else if (resolution > 39135.76)
-                return 1;
+                zoomLevel = 1;
             else if (resolution > 19567.88)
-                return 2;
+                zoomLevel = 2;
             else if (resolution > 9783.94)
-                return 3;
+                zoomLevel = 3;
             else if (resolution > 4891.97)
-                return 4;
+                zoomLevel = 4;
             else if (resolution > 2445.98)
-                return 5;
+                zoomLevel = 5;
             else if (resolution > 1222.99)
-                return 6;
+                zoomLevel = 6;
             else if (resolution > 611.50)
-                return 7;
+                zoomLevel = 7;
             else if (resolution > 305.75)
-                return 8;
+                zoomLevel = 8;
             else if (resolution > 152.87)
-                return 9;
+                zoomLevel = 9;
             else if (resolution > 76.437)
-                return 10;
+                zoomLevel = 10;
             else if (resolution > 38.219)
-                return 11;
+                zoomLevel = 11;
             else if (resolution > 19.109)
-                return 12;
+                zoomLevel = 12;
             else if (resolution > 9.5546)
-                return 13;
+                zoomLevel = 13;
             else if (resolution > 4.7773)
-                return 14;
+                zoomLevel = 14;
             else if (resolution > 2.3887)
-                return 15;
+                zoomLevel = 15;
             else if (resolution > 1.1943)
-                return 16;
+                zoomLevel = 16;
             else if (resolution > 0.5972)
-                return 17;
+                zoomLevel = 17;
             else
-                return 18;
+                zoomLevel = 18;
         }
 
         private double getDistance(double lat1, double lon1, double lat2, double lon2)
@@ -213,12 +243,15 @@ namespace photo2tiles
             double delta_y = bl_lat - tl_lat;
             double delta_x = tr_lon - tl_lon;
 
-            tiles = new Tile[xtiles * ytiles];
-            int count = 0;
+            //double delta_y = Math.Abs(bl_lat - tl_lat);
+            //double delta_x = Math.Abs(tr_lon - tl_lon);
 
             double[] tilesLat = new double[xtiles * ytiles];
             double[] tilesLon = new double[xtiles * ytiles];
 
+            tiles = new Tile[xtiles * ytiles];
+
+            int count = 0;
             for (int i = 0; i < xtiles; i++)
             {
                 for (int j = 0; j < ytiles; j++)
@@ -244,28 +277,78 @@ namespace photo2tiles
             }
         }
 
-        private void saveTiles()
+        private bool saveTiles()
         {
-            BitmapEncoder encoder;
-            FileStream stream;
+            SaveFileDialog saveFileDialog = new SaveFileDialog();
+            saveFileDialog.Filter = "Файлы карты (*.*)|*.*";
+            saveFileDialog.FilterIndex = 2;
+            saveFileDialog.RestoreDirectory = true;
 
-
-
-            foreach (Tile tile in tiles)
+            if (saveFileDialog.ShowDialog() == true)
             {
-                encoder = new PngBitmapEncoder();
-                encoder.Frames.Add(BitmapFrame.Create(tile.getCroppedBitmap()));
+                mapPath = saveFileDialog.FileName;
+                mapName = saveFileDialog.SafeFileName;
 
-                if (!Directory.Exists(mapName + "\\" + zoomLevel + "\\" + tile.getX()))
+                BitmapEncoder encoder;
+                FileStream stream;
+
+
+                foreach (Tile tile in tiles)
                 {
-                    String path = mapName + "\\" + zoomLevel + "\\" + tile.getX();
-                    Directory.CreateDirectory(path);
-                }
+                    encoder = new PngBitmapEncoder();
+                    encoder.Frames.Add(BitmapFrame.Create(tile.getCroppedBitmap()));
 
-                stream = new FileStream(mapName + "\\" + zoomLevel + "\\" + tile.getX() + "\\" + tile.getY() + ".png.tile", FileMode.Create);
-                encoder.Save(stream);
-                stream.Close();
+                    if (!Directory.Exists(mapPath + "\\" + zoomLevel + "\\" + tile.getX()))
+                    {
+                        String path = mapPath + "\\" + zoomLevel + "\\" + tile.getX();
+                        Directory.CreateDirectory(path);
+                    }
+
+                    stream = new FileStream(mapPath + "\\" + zoomLevel + "\\" + tile.getX() + "\\" + tile.getY() + ".png.tile", FileMode.Create);
+                    encoder.Save(stream);
+                    stream.Close();
+                }
+                return true;
             }
+                return false;
+        }
+
+        private void saveMetainfo()
+        {
+            string path = mapPath + "\\" + ".metainfo";
+
+            using (StreamWriter sw = File.CreateText(path))
+            {
+
+//                sw.WriteLine("[rule]");
+//                sw.WriteLine("beanshell");
+
+                sw.WriteLine("[name]");
+                sw.WriteLine(mapName);
+
+                sw.WriteLine("[ext]");
+                sw.WriteLine(".png");
+
+                sw.WriteLine("[min_zoom]");
+                sw.WriteLine(zoomLevel);
+
+                sw.WriteLine("[max_zoom]");
+                sw.WriteLine(zoomLevel + 2);
+
+                sw.WriteLine("[title_size]");
+                sw.WriteLine("256");
+
+                sw.WriteLine("[img_density]");
+                sw.WriteLine("16");
+
+                sw.WriteLine("[avg_img_size]");
+                sw.WriteLine("18000");
+
+                sw.WriteLine("[ellipsoid]");
+                sw.WriteLine("true ");
+            }
+
+            File.SetAttributes(path, FileAttributes.Hidden);
         }
         
 
